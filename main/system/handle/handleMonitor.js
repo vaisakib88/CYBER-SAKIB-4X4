@@ -1,6 +1,6 @@
 /**
  * ============================================================
- * SAKIB BOT - STRICT UNSEND MONITOR ONLY
+ * SAKIB BOT - BUFFER/STREAM UNSEND MONITOR (FIXED)
  * ============================================================
  */
 
@@ -48,7 +48,7 @@ module.exports = function ({ api }) {
         }
     }
 
-    async function sendAttachmentToTargets(message, url) {
+    async function sendMediaStreamToTargets(message, url, type) {
         if (!url) return false;
         if (!global.utils || typeof global.utils.getStreamFromURL !== "function") {
             return false;
@@ -59,6 +59,7 @@ module.exports = function ({ api }) {
 
         for (const uid of targets) {
             try {
+                // Direct stream download on the fly or cached
                 const stream = await global.utils.getStreamFromURL(url);
                 if (!stream) continue;
 
@@ -119,7 +120,7 @@ module.exports = function ({ api }) {
         cleanupTimer.unref();
     }
 
-    function cacheMessage(event) {
+    async function cacheMessage(event) {
         if (!event) return;
         const messageID = event.messageID || event.messageId;
         if (!messageID) return;
@@ -128,9 +129,20 @@ module.exports = function ({ api }) {
         if (Array.isArray(event.attachments)) {
             for (const attachment of event.attachments) {
                 if (!attachment) continue;
+                const url = getAttachmentURL(attachment);
+                let stream = null;
+
+                // Message asar sathe sathe stream download kore cache-e rekhe dibo jate pore expire na hoy
+                if (url && global.utils && typeof global.utils.getStreamFromURL === "function") {
+                    try {
+                        stream = await global.utils.getStreamFromURL(url);
+                    } catch (e) {}
+                }
+
                 attachments.push({
                     type: getAttachmentType(attachment),
-                    url: getAttachmentURL(attachment)
+                    url: url,
+                    stream: stream
                 });
             }
         }
@@ -154,33 +166,18 @@ module.exports = function ({ api }) {
         const key = String(messageID);
         let cached = messageCache.get(key);
 
-        if (!cached && event.attachments && event.attachments.length > 0) {
-            cached = {
-                senderID: event.senderID ? String(event.senderID) : "Unknown",
-                threadID: event.threadID ? String(event.threadID) : "Unknown",
-                messageID: String(messageID),
-                body: String(event.body || ""),
-                attachments: event.attachments.map(att => ({
-                    type: getAttachmentType(att),
-                    url: getAttachmentURL(att)
-                }))
-            };
-        }
-
         if (cached) {
-            // Text message থাকলে পাঠাবে
             if (cached.body && cached.body.trim() !== "") {
                 const textMessage = 
                     `🗑️ SAKIB UNSEND MONITOR\n\n` +
                     `⚠️ Message Unsent!\n\n` +
                     `👤 Sender UID: ${cached.senderID}\n` +
-                    `🆔 Group/Thread ID: ${cached.threadID}\n\n` +
+                    `🆔 Group ID: ${cached.threadID}\n\n` +
                     `💬 Message:\n${cached.body}`;
 
                 await sendToTargets(textMessage);
             }
 
-            // Photo বা Video বা অন্য কিছু থাকলে সরাসরি সেটি সহ আপনার কাছে পাঠাবে
             if (Array.isArray(cached.attachments) && cached.attachments.length > 0) {
                 for (const attachment of cached.attachments) {
                     const typeName = attachment.type.toUpperCase();
@@ -188,15 +185,31 @@ module.exports = function ({ api }) {
                         `🗑️ SAKIB UNSEND MONITOR\n\n` +
                         `📸 ${typeName} UNSENT!\n\n` +
                         `👤 Sender UID: ${cached.senderID}\n` +
-                        `🆔 Group/Thread ID: ${cached.threadID}`;
+                        `🆔 Group ID: ${cached.threadID}`;
 
-                    if (attachment.url) {
-                        const success = await sendAttachmentToTargets(message, attachment.url);
-                        if (!success) {
-                            await sendToTargets(message + `\n\n⚠️ Could not download media (Expired).`);
+                    let sent = false;
+
+                    // Jodi age stream download kora thake, tahole direct oi stream diye send korbe
+                    if (attachment.stream) {
+                        const targets = getTargets();
+                        for (const uid of targets) {
+                            try {
+                                await api.sendMessage({
+                                    body: message,
+                                    attachment: attachment.stream
+                                }, uid);
+                                sent = true;
+                            } catch (err) {}
                         }
-                    } else {
-                        await sendToTargets(message + `\n\n⚠️ Media URL unavailable.`);
+                    }
+
+                    // Jodi stream na thake, tobe url diye try korbe
+                    if (!sent && attachment.url) {
+                        sent = await sendMediaStreamToTargets(message, attachment.url, attachment.type);
+                    }
+
+                    if (!sent) {
+                        await sendToTargets(message + `\n\n⚠️ Could not retrieve media.`);
                     }
                 }
             }
@@ -215,13 +228,11 @@ module.exports = function ({ api }) {
             return;
         }
 
-        // সাধারণ মেসেজ আসলে শুধু ক্যাশ করবে, গ্রুপে বা কোথাও কোনো নোটিফিকেশন পাঠাবে না
         if (event.type === "message" || event.type === "message_reply") {
-            cacheMessage(event);
+            await cacheMessage(event);
             return;
         }
 
-        // কেউ unsend করলেই কেবল কাজ করবে এবং আপনার আইডিতে পাঠিয়ে দেবে
         if (event.type === "message_unsend") {
             await handleUnsend(event);
             return;
