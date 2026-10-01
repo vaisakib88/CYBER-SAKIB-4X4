@@ -13,6 +13,7 @@
   "author": "SAKIB",
   "license": "ISC",
   "dependencies": {
+    "@google/genai": "^2.25.0",
     "abir-photo360-apis": "^1.0.2",
     "aes-js": "^3.1.2",
     "axios": "^1.6.5",
