@@ -1,0 +1,21 @@
+{
+  "author": "SAKIB",
+  "developermode": false,
+  "language": "en",
+  "approval": false,
+  "premium": false,
+  "BOTNAME": "❣️দি্ঁল্ঁবা্ঁর্ঁ❣️",
+  "EMAIL": "sakibrahman189@gmail.com",
+  "PREFIX": "-",
+  "OPERATOR": ["100090445581185",
+        			"100090445581185"
+    													],
+  "ADMINBOT": ["",
+    					"100090445581185"
+  						
+  														],
+  "OWNER": ["100090445581185"],
+  "disabledcmds": [],
+  "disabledevents": [],
+  "note": "make sure that the bot name you entered is all lowercase"
+}
