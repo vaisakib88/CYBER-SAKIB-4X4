@@ -30,10 +30,10 @@ const { GoogleGenAI } = require("@google/genai");
 const TRIGGER = "😒";
 
 const TEXT =
-    "ওইভাবে তাকিয়ো না... প্রেমে পড়ে যাবো!";
+      "ওইভাবে তাকিয়ো না... প্রেমে পড়ে যাবো!";
 
 const MODEL =
-    "gemini-3.8-flash-tts";
+      "gemini-3.8-flash-tts";
 
 
 // ============================================================
@@ -41,25 +41,25 @@ const MODEL =
 // ============================================================
 
 const PROJECT_ROOT =
-    path.join(__dirname, "../../..");
+      path.join(__dirname, "../../..");
 
 const TEMP_DIR =
-    path.join(
-        PROJECT_ROOT,
-        "temp_voice"
-    );
+      path.join(
+          PROJECT_ROOT,
+          "temp_voice"
+      );
 
 const DATA_DIR =
-    path.join(
-        PROJECT_ROOT,
-        "data"
-    );
+      path.join(
+          PROJECT_ROOT,
+          "data"
+      );
 
 const VOICE_FILE =
-    path.join(
-        DATA_DIR,
-        "sakib_voice.json"
-    );
+      path.join(
+          DATA_DIR,
+          "sakib_voice.json"
+      );
 
 
 // ============================================================
@@ -67,36 +67,37 @@ const VOICE_FILE =
 // ============================================================
 
 const API_KEY =
-    process.env.GEMINI_API_KEY ||
-    process.env.GOOGLE_API_KEY;
+      "AQ.Ab8RN6JMKxHRVQbnzrne6vvBxygQxGE_6HrY9cjNiNjXW03JLg" ||
+      process.env.GEMINI_API_KEY ||
+      process.env.GOOGLE_API_KEY;
 
 
 if (!API_KEY) {
 
-    console.error(
-        "============================================================"
-    );
+      console.error(
+          "============================================================"
+      );
 
-    console.error(
-        "[SAKIB GEMINI TTS] ERROR: Gemini API key not found."
-    );
+      console.error(
+          "[SAKIB GEMINI TTS] ERROR: Gemini API key not found."
+      );
 
-    console.error(
-        "[SAKIB GEMINI TTS] Set GEMINI_API_KEY in GitHub Secrets."
-    );
+      console.error(
+          "[SAKIB GEMINI TTS] Set GEMINI_API_KEY in GitHub Secrets."
+      );
 
-    console.error(
-        "============================================================"
-    );
+      console.error(
+          "============================================================"
+      );
 }
 
 
 const ai =
-    API_KEY
-        ? new GoogleGenAI({
-            apiKey: API_KEY
-        })
-        : null;
+      API_KEY
+          ? new GoogleGenAI({
+              apiKey: API_KEY
+          })
+          : null;
 
 
 // ============================================================
@@ -156,68 +157,68 @@ Avoid:
 
 function prepareDirectories() {
 
-    try {
+      try {
 
-        // -------------------------------
-        // DATA DIRECTORY
-        // -------------------------------
+          // -------------------------------
+          // DATA DIRECTORY
+          // -------------------------------
 
-        if (!fs.existsSync(DATA_DIR)) {
+          if (!fs.existsSync(DATA_DIR)) {
 
-            fs.mkdirSync(
-                DATA_DIR,
-                {
-                    recursive: true
-                }
-            );
+              fs.mkdirSync(
+                  DATA_DIR,
+                  {
+                      recursive: true
+                  }
+              );
 
-        }
+          }
 
 
-        // -------------------------------
-        // TEMP VOICE DIRECTORY
-        // -------------------------------
+          // -------------------------------
+          // TEMP VOICE DIRECTORY
+          // -------------------------------
 
-        if (!fs.existsSync(TEMP_DIR)) {
+          if (!fs.existsSync(TEMP_DIR)) {
 
-            fs.mkdirSync(
-                TEMP_DIR,
-                {
-                    recursive: true
-                }
-            );
+              fs.mkdirSync(
+                  TEMP_DIR,
+                  {
+                      recursive: true
+                  }
+              );
 
-        } else {
+          } else {
 
-            const stat =
-                fs.statSync(TEMP_DIR);
+              const stat =
+                  fs.statSync(TEMP_DIR);
 
-            if (!stat.isDirectory()) {
+              if (!stat.isDirectory()) {
 
-                console.error(
-                    "[SAKIB GEMINI TTS] temp_voice is a FILE."
-                );
+                  console.error(
+                      "[SAKIB GEMINI TTS] temp_voice is a FILE."
+                  );
 
-                console.error(
-                    "[SAKIB GEMINI TTS] Delete the temp_voice file from GitHub."
-                );
+                  console.error(
+                      "[SAKIB GEMINI TTS] Delete the temp_voice file from GitHub."
+                  );
 
-                return false;
-            }
+                  return false;
+              }
 
-        }
+          }
 
-        return true;
+          return true;
 
-    } catch (error) {
+      } catch (error) {
 
-        console.error(
-            "[SAKIB GEMINI TTS] Directory error:",
-            error.message
-        );
+          console.error(
+              "[SAKIB GEMINI TTS] Directory error:",
+              error.message
+          );
 
-        return false;
-    }
+          return false;
+      }
 }
 
 
@@ -227,51 +228,51 @@ function prepareDirectories() {
 
 function loadSavedVoice() {
 
-    try {
+      try {
 
-        if (!fs.existsSync(VOICE_FILE)) {
+          if (!fs.existsSync(VOICE_FILE)) {
 
-            return null;
+              return null;
 
-        }
-
-
-        const raw =
-            fs.readFileSync(
-                VOICE_FILE,
-                "utf8"
-            );
+          }
 
 
-        const data =
-            JSON.parse(raw);
+          const raw =
+              fs.readFileSync(
+                  VOICE_FILE,
+                  "utf8"
+              );
 
 
-        if (
-            data &&
-            data.voiceId
-        ) {
-
-            console.log(
-                `[SAKIB GEMINI TTS] Saved voice found: ${data.voiceId}`
-            );
-
-            return data.voiceId;
-
-        }
+          const data =
+              JSON.parse(raw);
 
 
-        return null;
+          if (
+              data &&
+              data.voiceId
+          ) {
 
-    } catch (error) {
+              console.log(
+                  `[SAKIB GEMINI TTS] Saved voice found: ${data.voiceId}`
+              );
 
-        console.error(
-            "[SAKIB GEMINI TTS] Could not read saved voice:",
-            error.message
-        );
+              return data.voiceId;
 
-        return null;
-    }
+          }
+
+
+          return null;
+
+      } catch (error) {
+
+          console.error(
+              "[SAKIB GEMINI TTS] Could not read saved voice:",
+              error.message
+          );
+
+          return null;
+      }
 }
 
 
@@ -280,63 +281,63 @@ function loadSavedVoice() {
 // ============================================================
 
 function saveVoice(
-    voiceId,
-    voiceInfo = {}
+      voiceId,
+      voiceInfo = {}
 ) {
 
-    try {
+      try {
 
-        const data = {
+          const data = {
 
-            voiceId: voiceId,
+              voiceId: voiceId,
 
-            displayName:
-                voiceInfo.displayName ||
-                "SAKIB PAKHI - Soft Bengali",
+              displayName:
+                  voiceInfo.displayName ||
+                  "SAKIB PAKHI - Soft Bengali",
 
-            model:
-                MODEL,
+              model:
+                  MODEL,
 
-            language:
-                "bn-BD",
+              language:
+                  "bn-BD",
 
-            createdAt:
-                new Date().toISOString()
+              createdAt:
+                  new Date().toISOString()
 
-        };
-
-
-        fs.writeFileSync(
-
-            VOICE_FILE,
-
-            JSON.stringify(
-                data,
-                null,
-                2
-            ),
-
-            "utf8"
-
-        );
+          };
 
 
-        console.log(
-            `[SAKIB GEMINI TTS] Voice ID saved: ${voiceId}`
-        );
+          fs.writeFileSync(
+
+              VOICE_FILE,
+
+              JSON.stringify(
+                  data,
+                  null,
+                  2
+              ),
+
+              "utf8"
+
+          );
 
 
-        return true;
+          console.log(
+              `[SAKIB GEMINI TTS] Voice ID saved: ${voiceId}`
+          );
 
-    } catch (error) {
 
-        console.error(
-            "[SAKIB GEMINI TTS] Could not save voice:",
-            error.message
-        );
+          return true;
 
-        return false;
-    }
+      } catch (error) {
+
+          console.error(
+              "[SAKIB GEMINI TTS] Could not save voice:",
+              error.message
+          );
+
+          return false;
+      }
 }
 
 
@@ -346,151 +347,151 @@ function saveVoice(
 
 async function createCustomVoice() {
 
-    if (!ai) {
+      if (!ai) {
 
-        throw new Error(
-            "Gemini API key is missing."
-        );
+          throw new Error(
+              "Gemini API key is missing."
+          );
 
-    }
-
-
-    console.log(
-        "============================================================"
-    );
-
-    console.log(
-        "[SAKIB GEMINI TTS] Creating custom Voice Design..."
-    );
-
-    console.log(
-        "[SAKIB GEMINI TTS] This normally happens only once."
-    );
-
-    console.log(
-        "============================================================"
-    );
+      }
 
 
-    const createdVoice =
-        await ai.voices.create({
+      console.log(
+          "============================================================"
+      );
 
-            store: true,
+      console.log(
+          "[SAKIB GEMINI TTS] Creating custom Voice Design..."
+      );
 
-            voice: {
+      console.log(
+          "[SAKIB GEMINI TTS] This normally happens only once."
+      );
 
-                model:
-                    MODEL,
-
-                type:
-                    "prompted",
-
-                display_name:
-                    "SAKIB PAKHI - Soft Bengali",
-
-                gender:
-                    "female",
-
-                language_code:
-                    "bn-BD",
-
-                prompted: {
-
-                    input:
-                        VOICE_PERSONA
-
-                }
-
-            }
-
-        });
+      console.log(
+          "============================================================"
+      );
 
 
-    if (
-        !createdVoice ||
-        !createdVoice.id
-    ) {
+      const createdVoice =
+          await ai.voices.create({
 
-        throw new Error(
-            "Gemini did not return a custom voice ID."
-        );
+              store: true,
 
-    }
+              voice: {
 
+                  model:
+                      MODEL,
 
-    console.log(
-        "============================================================"
-    );
+                  type:
+                      "prompted",
 
-    console.log(
-        "[SAKIB GEMINI TTS] CUSTOM VOICE CREATED!"
-    );
+                  display_name:
+                      "SAKIB PAKHI - Soft Bengali",
 
-    console.log(
-        `[SAKIB GEMINI TTS] Voice ID: ${createdVoice.id}`
-    );
+                  gender:
+                      "female",
 
-    console.log(
-        "============================================================"
-    );
+                  language_code:
+                      "bn-BD",
 
+                  prompted: {
 
-    // Save voice ID permanently
-    saveVoice(
-        createdVoice.id,
-        {
-            displayName:
-                "SAKIB PAKHI - Soft Bengali"
-        }
-    );
+                      input:
+                          VOICE_PERSONA
+
+                  }
+
+              }
+
+          });
 
 
-    // Save preview if Gemini returns one
-    if (
-        createdVoice.sample_audio &&
-        createdVoice.sample_audio.data
-    ) {
+      if (
+          !createdVoice ||
+          !createdVoice.id
+      ) {
 
-        try {
+          throw new Error(
+              "Gemini did not return a custom voice ID."
+          );
 
-            const previewPath =
-                path.join(
-                    DATA_DIR,
-                    "sakib_voice_preview.wav"
-                );
+      }
 
 
-            fs.writeFileSync(
+      console.log(
+          "============================================================"
+      );
 
-                previewPath,
+      console.log(
+          "[SAKIB GEMINI TTS] CUSTOM VOICE CREATED!"
+      );
 
-                Buffer.from(
-                    createdVoice
-                        .sample_audio
-                        .data,
-                    "base64"
-                )
+      console.log(
+          `[SAKIB GEMINI TTS] Voice ID: ${createdVoice.id}`
+      );
 
-            );
-
-
-            console.log(
-                `[SAKIB GEMINI TTS] Voice preview saved: ${previewPath}`
-            );
-
-        } catch (error) {
-
-            console.error(
-                "[SAKIB GEMINI TTS] Preview save error:",
-                error.message
-            );
-
-        }
-
-    }
+      console.log(
+          "============================================================"
+      );
 
 
-    return createdVoice.id;
+      // Save voice ID permanently
+      saveVoice(
+          createdVoice.id,
+          {
+              displayName:
+                  "SAKIB PAKHI - Soft Bengali"
+          }
+      );
+
+
+      // Save preview if Gemini returns one
+      if (
+          createdVoice.sample_audio &&
+          createdVoice.sample_audio.data
+      ) {
+
+          try {
+
+              const previewPath =
+                  path.join(
+                      DATA_DIR,
+                      "sakib_voice_preview.wav"
+                  );
+
+
+              fs.writeFileSync(
+
+                  previewPath,
+
+                  Buffer.from(
+                      createdVoice
+                          .sample_audio
+                          .data,
+                      "base64"
+                  )
+
+              );
+
+
+              console.log(
+                  `[SAKIB GEMINI TTS] Voice preview saved: ${previewPath}`
+              );
+
+          } catch (error) {
+
+              console.error(
+                  "[SAKIB GEMINI TTS] Preview save error:",
+                  error.message
+              );
+
+          }
+
+      }
+
+
+      return createdVoice.id;
 }
 
 
@@ -500,26 +501,26 @@ async function createCustomVoice() {
 
 async function getVoiceId() {
 
-    // ----------------------------------------
-    // First try saved voice
-    // ----------------------------------------
+      // ----------------------------------------
+      // First try saved voice
+      // ----------------------------------------
 
-    const savedVoice =
-        loadSavedVoice();
-
-
-    if (savedVoice) {
-
-        return savedVoice;
-
-    }
+      const savedVoice =
+          loadSavedVoice();
 
 
-    // ----------------------------------------
-    // No saved voice -> create one
-    // ----------------------------------------
+      if (savedVoice) {
 
-    return await createCustomVoice();
+          return savedVoice;
+
+      }
+
+
+      // ----------------------------------------
+      // No saved voice -> create one
+      // ----------------------------------------
+
+      return await createCustomVoice();
 }
 
 
@@ -528,141 +529,141 @@ async function getVoiceId() {
 // ============================================================
 
 async function generateVoice(
-    voiceId,
-    outputFile
+      voiceId,
+      outputFile
 ) {
 
-    if (!ai) {
+      if (!ai) {
 
-        throw new Error(
-            "Gemini API key is missing."
-        );
+          throw new Error(
+              "Gemini API key is missing."
+          );
 
-    }
-
-
-    console.log(
-        "[SAKIB GEMINI TTS] Generating Bengali speech..."
-    );
+      }
 
 
-    const response =
-        await ai.models.generateContent({
-
-            model:
-                MODEL,
-
-            contents: [
-
-                {
-
-                    role:
-                        "user",
-
-                    parts: [
-
-                        {
-
-                            text:
-                                TEXT,
-
-                            speechMetadata: {
-
-                                style:
-                                    "Speak naturally in Bangladeshi Bengali. " +
-                                    "Soft, warm, feminine, slightly shy and playful. " +
-                                    "Sound like a real young adult woman speaking casually. " +
-                                    "Use a natural pause after 'তাকিয়ো না'. " +
-                                    "Say 'প্রেমে পড়ে যাবো' with a subtle shy and affectionate tone. " +
-                                    "Do not overact. Keep the emotion realistic and conversational."
-
-                            }
-
-                        }
-
-                    ]
-
-                }
-
-            ],
-
-            config: {
-
-                responseModalities: [
-
-                    "AUDIO"
-
-                ],
-
-                speechConfig: {
-
-                    voiceConfig: {
-
-                        voice:
-                            voiceId
-
-                    }
-
-                }
-
-            }
-
-        });
+      console.log(
+          "[SAKIB GEMINI TTS] Generating Bengali speech..."
+      );
 
 
-    // ========================================================
-    // EXTRACT AUDIO
-    // ========================================================
+      const response =
+          await ai.models.generateContent({
 
-    const audioData =
+              model:
+                  MODEL,
 
-        response
-            ?.candidates?.[0]
-            ?.content?.parts?.[0]
-            ?.inlineData?.data;
+              contents: [
+
+                  {
+
+                      role:
+                          "user",
+
+                      parts: [
+
+                          {
+
+                              text:
+                                  TEXT,
+
+                              speechMetadata: {
+
+                                  style:
+                                      "Speak naturally in Bangladeshi Bengali. " +
+                                      "Soft, warm, feminine, slightly shy and playful. " +
+                                      "Sound like a real young adult woman speaking casually. " +
+                                      "Use a natural pause after 'তাকিয়ো না'. " +
+                                      "Say 'প্রেমে পড়ে যাবো' with a subtle shy and affectionate tone. " +
+                                      "Do not overact. Keep the emotion realistic and conversational."
+
+                              }
+
+                          }
+
+                      ]
+
+                  }
+
+              ],
+
+              config: {
+
+                  responseModalities: [
+
+                      "AUDIO"
+
+                  ],
+
+                  speechConfig: {
+
+                      voiceConfig: {
+
+                          voice:
+                              voiceId
+
+                      }
+
+                  }
+
+              }
+
+          });
 
 
-    if (!audioData) {
+      // ========================================================
+      // EXTRACT AUDIO
+      // ========================================================
 
-        throw new Error(
-            "Gemini returned no audio data."
-        );
+      const audioData =
 
-    }
-
-
-    // ========================================================
-    // BASE64 -> WAV
-    // ========================================================
-
-    const audioBuffer =
-        Buffer.from(
-            audioData,
-            "base64"
-        );
+          response
+              ?.candidates?.[0]
+              ?.content?.parts?.[0]
+              ?.inlineData?.data;
 
 
-    if (!audioBuffer.length) {
+      if (!audioData) {
 
-        throw new Error(
-            "Generated audio is empty."
-        );
+          throw new Error(
+              "Gemini returned no audio data."
+          );
 
-    }
-
-
-    fs.writeFileSync(
-        outputFile,
-        audioBuffer
-    );
+      }
 
 
-    console.log(
-        `[SAKIB GEMINI TTS] Audio created: ${audioBuffer.length} bytes`
-    );
+      // ========================================================
+      // BASE64 -> WAV
+      // ========================================================
+
+      const audioBuffer =
+          Buffer.from(
+              audioData,
+              "base64"
+          );
 
 
-    return outputFile;
+      if (!audioBuffer.length) {
+
+          throw new Error(
+              "Generated audio is empty."
+          );
+
+      }
+
+
+      fs.writeFileSync(
+          outputFile,
+          audioBuffer
+      );
+
+
+      console.log(
+          `[SAKIB GEMINI TTS] Audio created: ${audioBuffer.length} bytes`
+      );
+
+
+      return outputFile;
 }
 
 
@@ -671,48 +672,48 @@ async function generateVoice(
 // ============================================================
 
 function sendVoice(
-    api,
-    threadID,
-    filePath
+      api,
+      threadID,
+      filePath
 ) {
 
-    return new Promise(
-        (resolve, reject) => {
+      return new Promise(
+          (resolve, reject) => {
 
-            api.sendMessage(
+              api.sendMessage(
 
-                {
+                  {
 
-                    body:
-                        "🙈❤️",
+                      body:
+                          "🙈❤️",
 
-                    attachment:
-                        fs.createReadStream(
-                            filePath
-                        )
+                      attachment:
+                          fs.createReadStream(
+                              filePath
+                          )
 
-                },
+                  },
 
-                threadID,
+                  threadID,
 
-                (error) => {
+                  (error) => {
 
-                    if (error) {
+                      if (error) {
 
-                        reject(error);
+                          reject(error);
 
-                    } else {
+                      } else {
 
-                        resolve();
+                          resolve();
 
-                    }
+                      }
 
-                }
+                  }
 
-            );
+              );
 
-        }
-    );
+          }
+      );
 
 }
 
@@ -724,202 +725,202 @@ function sendVoice(
 module.exports = function ({ api }) {
 
 
-    // Prepare directories
-    prepareDirectories();
+      // Prepare directories
+      prepareDirectories();
 
 
-    // ----------------------------------------
-    // Event handler
-    // ----------------------------------------
+      // ----------------------------------------
+      // Event handler
+      // ----------------------------------------
 
-    return async function ({ event }) {
+      return async function ({ event }) {
 
-        try {
+          try {
 
-            if (!event) {
-                return;
-            }
+              if (!event) {
+                  return;
+              }
 
 
-            if (!event.threadID) {
-                return;
-            }
+              if (!event.threadID) {
+                  return;
+              }
 
 
-            if (!event.body) {
-                return;
-            }
+              if (!event.body) {
+                  return;
+              }
 
 
-            // --------------------------------
-            // Check trigger
-            // --------------------------------
+              // --------------------------------
+              // Check trigger
+              // --------------------------------
 
-            if (
-                !String(event.body)
-                    .includes(TRIGGER)
-            ) {
+              if (
+                  !String(event.body)
+                      .includes(TRIGGER)
+              ) {
 
-                return;
+                  return;
 
-            }
+              }
 
 
-            console.log(
-                "============================================================"
-            );
+              console.log(
+                  "============================================================"
+              );
 
-            console.log(
-                "[SAKIB GEMINI TTS] 😒 TRIGGER DETECTED"
-            );
+              console.log(
+                  "[SAKIB GEMINI TTS] 😒 TRIGGER DETECTED"
+              );
 
-            console.log(
-                `[SAKIB GEMINI TTS] User: ${event.senderID}`
-            );
+              console.log(
+                  `[SAKIB GEMINI TTS] User: ${event.senderID}`
+              );
 
-            console.log(
-                `[SAKIB GEMINI TTS] Text: ${event.body}`
-            );
+              console.log(
+                  `[SAKIB GEMINI TTS] Text: ${event.body}`
+              );
 
-            console.log(
-                "============================================================"
-            );
+              console.log(
+                  "============================================================"
+              );
 
 
-            // --------------------------------
-            // API key
-            // --------------------------------
+              // --------------------------------
+              // API key
+              // --------------------------------
 
-            if (!ai) {
+              if (!ai) {
 
-                console.error(
-                    "[SAKIB GEMINI TTS] Gemini API key missing."
-                );
+                  console.error(
+                      "[SAKIB GEMINI TTS] Gemini API key missing."
+                  );
 
-                return;
+                  return;
 
-            }
+              }
 
 
-            // --------------------------------
-            // Check temp folder
-            // --------------------------------
+              // --------------------------------
+              // Check temp folder
+              // --------------------------------
 
-            if (
-                !fs.existsSync(TEMP_DIR) ||
-                !fs.statSync(TEMP_DIR).isDirectory()
-            ) {
+              if (
+                  !fs.existsSync(TEMP_DIR) ||
+                  !fs.statSync(TEMP_DIR).isDirectory()
+              ) {
 
-                console.error(
-                    "[SAKIB GEMINI TTS] temp_voice folder is invalid."
-                );
+                  console.error(
+                      "[SAKIB GEMINI TTS] temp_voice folder is invalid."
+                  );
 
-                return;
+                  return;
 
-            }
+              }
 
 
-            // --------------------------------
-            // Get custom voice
-            // --------------------------------
+              // --------------------------------
+              // Get custom voice
+              // --------------------------------
 
-            const voiceId =
-                await getVoiceId();
+              const voiceId =
+                  await getVoiceId();
 
 
-            console.log(
-                `[SAKIB GEMINI TTS] Using voice: ${voiceId}`
-            );
+              console.log(
+                  `[SAKIB GEMINI TTS] Using voice: ${voiceId}`
+              );
 
 
-            // --------------------------------
-            // File
-            // --------------------------------
+              // --------------------------------
+              // File
+              // --------------------------------
 
-            const fileName =
-                `gemini_voice_${Date.now()}.wav`;
+              const fileName =
+                  `gemini_voice_${Date.now()}.wav`;
 
 
-            const filePath =
-                path.join(
-                    TEMP_DIR,
-                    fileName
-                );
+              const filePath =
+                  path.join(
+                      TEMP_DIR,
+                      fileName
+                  );
 
 
-            // --------------------------------
-            // Generate
-            // --------------------------------
+              // --------------------------------
+              // Generate
+              // --------------------------------
 
-            await generateVoice(
-                voiceId,
-                filePath
-            );
+              await generateVoice(
+                  voiceId,
+                  filePath
+              );
 
 
-            // --------------------------------
-            // Send
-            // --------------------------------
+              // --------------------------------
+              // Send
+              // --------------------------------
 
-            await sendVoice(
-                api,
-                event.threadID,
-                filePath
-            );
+              await sendVoice(
+                  api,
+                  event.threadID,
+                  filePath
+              );
 
 
-            console.log(
-                "[SAKIB GEMINI TTS] ✅ Voice sent successfully."
-            );
+              console.log(
+                  "[SAKIB GEMINI TTS] ✅ Voice sent successfully."
+              );
 
 
-            // --------------------------------
-            // Delete temporary file
-            // --------------------------------
+              // --------------------------------
+              // Delete temporary file
+              // --------------------------------
 
-            try {
+              try {
 
-                if (
-                    fs.existsSync(filePath)
-                ) {
+                  if (
+                      fs.existsSync(filePath)
+                  ) {
 
-                    fs.unlinkSync(
-                        filePath
-                    );
+                      fs.unlinkSync(
+                          filePath
+                      );
 
-                }
+                  }
 
-            } catch (cleanupError) {
+              } catch (cleanupError) {
 
-                console.error(
-                    "[SAKIB GEMINI TTS] Cleanup error:",
-                    cleanupError.message
-                );
+                  console.error(
+                      "[SAKIB GEMINI TTS] Cleanup error:",
+                      cleanupError.message
+                  );
 
-            }
+              }
 
 
-        } catch (error) {
+          } catch (error) {
 
-            console.error(
-                "============================================================"
-            );
+              console.error(
+                  "============================================================"
+              );
 
-            console.error(
-                "[SAKIB GEMINI TTS ERROR]"
-            );
+              console.error(
+                  "[SAKIB GEMINI TTS ERROR]"
+              );
 
-            console.error(
-                error?.message ||
-                error
-            );
+              console.error(
+                  error?.message ||
+                  error
+              );
 
-            console.error(
-                "============================================================"
-            );
+              console.error(
+                  "============================================================"
+              );
 
-        }
+          }
 
-    };
+      };
 
 };
