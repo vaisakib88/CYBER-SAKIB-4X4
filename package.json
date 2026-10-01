@@ -29,7 +29,7 @@
     "filipino-badwords-list": "^1.1.2",
     "fs": "^0.0.1-security",
     "fs-extra": "^11.2.0",
-    "googlethis": "^1.7.1",
+    "googlethis": "^1.7.0",
     "gradient-string": "^2.0.0",
     "https-proxy-agent": "^7.0.6",
     "jimp": "^0.22.8",
@@ -55,8 +55,9 @@
     "sqlite3": "^5.1.6",
     "string-similarity": "^4.0.4",
     "websocket-stream": "^5.5.0",
-    "wikijs": "^6.4.1",
+    "wikijs": "^6.4.0",
     "youtube-search-api": "^1.1.1",
-    "ytdl-core": "^4.11.4"
+    "ytdl-core": "^4.11.4",
+    "gtts": "^0.2.1"
   }
 }
