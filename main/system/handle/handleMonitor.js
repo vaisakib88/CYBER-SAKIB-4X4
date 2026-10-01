@@ -1,12 +1,13 @@
 /**
  * ============================================================
- * SAKIB BOT - BUFFER/STREAM UNSEND MONITOR (FIXED)
+ * SAKIB BOT - ROBUST MEDIA UNSEND MONITOR (FINAL FIX)
  * ============================================================
  */
 
 module.exports = function ({ api }) {
 
     const config = global.config || {};
+    const axios = require("axios");
 
     const CACHE_TTL = 24 * 60 * 60 * 1000;
     const MAX_CACHE = 5000;
@@ -46,33 +47,6 @@ module.exports = function ({ api }) {
                 await api.sendMessage(message, uid);
             } catch (error) {}
         }
-    }
-
-    async function sendMediaStreamToTargets(message, url, type) {
-        if (!url) return false;
-        if (!global.utils || typeof global.utils.getStreamFromURL !== "function") {
-            return false;
-        }
-
-        const targets = getTargets();
-        let sent = false;
-
-        for (const uid of targets) {
-            try {
-                // Direct stream download on the fly or cached
-                const stream = await global.utils.getStreamFromURL(url);
-                if (!stream) continue;
-
-                await api.sendMessage({
-                    body: message,
-                    attachment: stream
-                }, uid);
-
-                sent = true;
-            } catch (error) {}
-        }
-
-        return sent;
     }
 
     function getAttachmentType(attachment) {
@@ -130,19 +104,29 @@ module.exports = function ({ api }) {
             for (const attachment of event.attachments) {
                 if (!attachment) continue;
                 const url = getAttachmentURL(attachment);
-                let stream = null;
+                let cachedStream = null;
 
-                // Message asar sathe sathe stream download kore cache-e rekhe dibo jate pore expire na hoy
-                if (url && global.utils && typeof global.utils.getStreamFromURL === "function") {
+                if (url) {
                     try {
-                        stream = await global.utils.getStreamFromURL(url);
+                        // Try global utils first
+                        if (global.utils && typeof global.utils.getStreamFromURL === "function") {
+                            cachedStream = await global.utils.getStreamFromURL(url);
+                        }
                     } catch (e) {}
+
+                    // Fallback using axios stream if global utils fails
+                    if (!cachedStream) {
+                        try {
+                            const res = await axios.get(url, { responseType: 'stream' });
+                            cachedStream = res.data;
+                        } catch (e) {}
+                    }
                 }
 
                 attachments.push({
                     type: getAttachmentType(attachment),
                     url: url,
-                    stream: stream
+                    stream: cachedStream
                 });
             }
         }
@@ -188,10 +172,10 @@ module.exports = function ({ api }) {
                         `🆔 Group ID: ${cached.threadID}`;
 
                     let sent = false;
+                    const targets = getTargets();
 
-                    // Jodi age stream download kora thake, tahole direct oi stream diye send korbe
+                    // 1. Try cached stream first
                     if (attachment.stream) {
-                        const targets = getTargets();
                         for (const uid of targets) {
                             try {
                                 await api.sendMessage({
@@ -203,9 +187,30 @@ module.exports = function ({ api }) {
                         }
                     }
 
-                    // Jodi stream na thake, tobe url diye try korbe
+                    // 2. If stream fails, try fetching fresh via axios/global.utils on unsend
                     if (!sent && attachment.url) {
-                        sent = await sendMediaStreamToTargets(message, attachment.url, attachment.type);
+                        let freshStream = null;
+                        try {
+                            if (global.utils && typeof global.utils.getStreamFromURL === "function") {
+                                freshStream = await global.utils.getStreamFromURL(attachment.url);
+                            }
+                            if (!freshStream) {
+                                const res = await axios.get(attachment.url, { responseType: 'stream' });
+                                freshStream = res.data;
+                            }
+                        } catch (e) {}
+
+                        if (freshStream) {
+                            for (const uid of targets) {
+                                try {
+                                    await api.sendMessage({
+                                        body: message,
+                                        attachment: freshStream
+                                    }, uid);
+                                    sent = true;
+                                } catch (err) {}
+                            }
+                        }
                     }
 
                     if (!sent) {
