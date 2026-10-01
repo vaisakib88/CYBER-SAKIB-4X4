@@ -1,17 +1,12 @@
 /**
  * SAKIB BOT
- * 😒 Emoji -> Bengali Voice Reply
- *
- * Trigger:
- * 😒
- *
- * Reply:
- * "ওইভাবে তাকিয়ো না, প্রেমে পড়ে যাবো!"
+ * 😒 -> Bengali Voice Reply
  */
 
 const fs = require("fs");
 const path = require("path");
-const gTTS = require("gtts");
+const axios = require("axios");
+const googleTTS = require("google-tts-api");
 
 module.exports = function ({ api }) {
 
@@ -33,44 +28,47 @@ module.exports = function ({ api }) {
         if (!event.threadID) return;
         if (!event.body) return;
 
-        // শুধু 😒 থাকলেই trigger
+        // 😒 থাকলেই trigger
         if (!String(event.body).includes(TRIGGER)) {
             return;
         }
 
+        let filePath = null;
+
         try {
 
             const fileName =
-                `voice_${Date.now()}_${Math.random()
-                    .toString(36)
-                    .substring(2, 8)}.mp3`;
+                `voice_${Date.now()}.mp3`;
 
-            const filePath = path.join(
+            filePath = path.join(
                 TEMP_DIR,
                 fileName
             );
 
-            // Bengali TTS
-            const tts = new gTTS(
+            // Google Bengali TTS
+            const audioUrl = googleTTS.getAudioUrl(
                 TEXT,
-                "bn"
+                {
+                    lang: "bn",
+                    slow: false
+                }
             );
 
-            await new Promise((resolve, reject) => {
+            // MP3 download
+            const response = await axios.get(
+                audioUrl,
+                {
+                    responseType: "arraybuffer",
+                    timeout: 15000
+                }
+            );
 
-                tts.save(filePath, (error) => {
+            fs.writeFileSync(
+                filePath,
+                response.data
+            );
 
-                    if (error) {
-                        reject(error);
-                    } else {
-                        resolve();
-                    }
-
-                });
-
-            });
-
-            // Messenger-এ voice পাঠানো
+            // Messenger voice পাঠানো
             await new Promise((resolve, reject) => {
 
                 api.sendMessage(
@@ -81,33 +79,40 @@ module.exports = function ({ api }) {
                     event.threadID,
                     (error) => {
 
-                        // File delete
-                        try {
-                            if (fs.existsSync(filePath)) {
-                                fs.unlinkSync(filePath);
-                            }
-                        } catch (e) {}
-
                         if (error) {
                             reject(error);
                         } else {
                             resolve();
                         }
 
-                    },
-                    event.messageID
+                    }
                 );
 
             });
+
+            console.log(
+                "[SAKIB EMOJI VOICE] Sent successfully."
+            );
 
         } catch (error) {
 
             console.error(
                 "[SAKIB EMOJI VOICE ERROR]",
-                error
+                error.message || error
             );
 
-        }
+        } finally {
 
+            // Temporary MP3 delete
+            try {
+                if (
+                    filePath &&
+                    fs.existsSync(filePath)
+                ) {
+                    fs.unlinkSync(filePath);
+                }
+            } catch (e) {}
+
+        }
     };
 };
