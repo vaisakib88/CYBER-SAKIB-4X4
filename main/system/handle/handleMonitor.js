@@ -1,30 +1,27 @@
 /**
  * ============================================================
- * SAKIB BOT - GROUP MONITOR
+ * SAKIB BOT - UNSEND ONLY GROUP MONITOR
  * ============================================================
  *
- * Monitors group messages and sends:
+ * কাজ:
  *
- * ✅ Normal text containing links
- * ✅ Photos
- * ✅ Videos
- * ✅ Message information
- * ✅ Unsent message information
- * ✅ Cached original text when available
- * ✅ Cached photo/video when URL is still available
+ * ❌ কেউ message/photo/video/sticker পাঠালেই notification যাবে না
  *
- * Targets:
- *   Config.json -> OPERATOR
- *   Config.json -> ADMINBOT
+ * ✅ কেউ message UNSEND করলে তখনই notification যাবে
+ *
+ * ✅ Text unsend -> original text
+ * ✅ Photo unsend -> original photo পাঠানোর চেষ্টা
+ * ✅ Video unsend -> original video পাঠানোর চেষ্টা
+ * ✅ Sticker unsend -> sticker information
+ *
+ * Target:
+ * Config.json -> OPERATOR + ADMINBOT
  *
  * IMPORTANT:
- * Unsend content can only be recovered if the message was
- * received and cached BEFORE it was unsent.
+ * Message আসার সময় cache করা হয়।
+ * পরে message_unsend এলে cache থেকে original content নেওয়া হয়।
  * ============================================================
  */
-
-const fs = require("fs");
-const path = require("path");
 
 module.exports = function ({ api }) {
 
@@ -34,21 +31,25 @@ module.exports = function ({ api }) {
     // SETTINGS
     // =========================================================
 
-    const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
-    const MAX_CACHE = 3000;
+    // কতক্ষণ message cache-এ থাকবে
+    const CACHE_TTL = 24 * 60 * 60 * 1000;
+
+    // সর্বোচ্চ কত message cache রাখা হবে
+    const MAX_CACHE = 5000;
 
     /*
-     * messageID -> cached message
+     * messageID -> original message
      */
     const messageCache = new Map();
 
     // =========================================================
-    // TARGET USERS
+    // TARGET UID
     // =========================================================
 
     function getTargets() {
 
         const targets = [
+
             ...(Array.isArray(config.OPERATOR)
                 ? config.OPERATOR
                 : []),
@@ -56,6 +57,7 @@ module.exports = function ({ api }) {
             ...(Array.isArray(config.ADMINBOT)
                 ? config.ADMINBOT
                 : [])
+
         ];
 
         return [
@@ -77,10 +79,12 @@ module.exports = function ({ api }) {
         try {
 
             if (
-                typeof api.getCurrentUserID === "function"
+                typeof api.getCurrentUserID ===
+                "function"
             ) {
 
-                const id = api.getCurrentUserID();
+                const id =
+                    api.getCurrentUserID();
 
                 if (id) {
                     return String(id);
@@ -90,7 +94,7 @@ module.exports = function ({ api }) {
         } catch (error) {
 
             console.error(
-                "[SAKIB MONITOR] Cannot get bot UID:",
+                "[SAKIB UNSEND MONITOR] Bot UID error:",
                 error.message
             );
         }
@@ -99,17 +103,22 @@ module.exports = function ({ api }) {
     }
 
     // =========================================================
-    // SEND MESSAGE TO ALL TARGETS
+    // SEND TEXT TO TARGETS
     // =========================================================
 
-    async function sendToAdmins(message) {
+    async function sendToTargets(message) {
 
-        const targets = getTargets();
+        const targets =
+            getTargets();
 
-        if (targets.length === 0) {
+        if (
+            !targets ||
+            targets.length === 0
+        ) {
 
             console.log(
-                "[SAKIB MONITOR] No OPERATOR/ADMINBOT UID found."
+                "[SAKIB UNSEND MONITOR] " +
+                "No OPERATOR/ADMINBOT UID found."
             );
 
             return;
@@ -127,7 +136,8 @@ module.exports = function ({ api }) {
             } catch (error) {
 
                 console.error(
-                    `[SAKIB MONITOR] Failed to send to ${uid}:`,
+                    `[SAKIB UNSEND MONITOR] ` +
+                    `Send failed to ${uid}:`,
                     error.message
                 );
             }
@@ -135,15 +145,13 @@ module.exports = function ({ api }) {
     }
 
     // =========================================================
-    // SEND ATTACHMENT TO ALL TARGETS
+    // SEND ATTACHMENT TO TARGETS
     // =========================================================
 
-    async function sendAttachmentToAdmins(
+    async function sendAttachment(
         message,
         url
     ) {
-
-        const targets = getTargets();
 
         if (!url) {
             return false;
@@ -151,29 +159,32 @@ module.exports = function ({ api }) {
 
         if (
             !global.utils ||
-            typeof global.utils.getStreamFromURL !== "function"
+            typeof global.utils.getStreamFromURL !==
+            "function"
         ) {
 
             console.error(
-                "[SAKIB MONITOR] global.utils.getStreamFromURL is unavailable."
+                "[SAKIB UNSEND MONITOR] " +
+                "getStreamFromURL unavailable."
             );
 
             return false;
         }
+
+        const targets =
+            getTargets();
+
+        let sent = false;
 
         for (const uid of targets) {
 
             try {
 
                 const stream =
-                    await global.utils.getStreamFromURL(url);
+                    await global.utils
+                        .getStreamFromURL(url);
 
                 if (!stream) {
-
-                    console.error(
-                        `[SAKIB MONITOR] Empty stream for ${uid}`
-                    );
-
                     continue;
                 }
 
@@ -185,39 +196,28 @@ module.exports = function ({ api }) {
                     uid
                 );
 
+                sent = true;
+
             } catch (error) {
 
                 console.error(
-                    `[SAKIB MONITOR] Attachment forward failed to ${uid}:`,
+                    `[SAKIB UNSEND MONITOR] ` +
+                    `Attachment failed to ${uid}:`,
                     error.message
                 );
             }
         }
 
-        return true;
+        return sent;
     }
 
     // =========================================================
-    // LINK EXTRACTOR
+    // GET ATTACHMENT TYPE
     // =========================================================
 
-    function extractLinks(text) {
-
-        if (!text) {
-            return [];
-        }
-
-        const regex =
-            /https?:\/\/[^\s<>"']+/gi;
-
-        return text.match(regex) || [];
-    }
-
-    // =========================================================
-    // ATTACHMENT TYPE
-    // =========================================================
-
-    function getAttachmentType(attachment) {
+    function getAttachmentType(
+        attachment
+    ) {
 
         if (!attachment) {
             return "unknown";
@@ -226,30 +226,33 @@ module.exports = function ({ api }) {
         const type =
             String(
                 attachment.type ||
-                attachment.mimeType ||
                 ""
             ).toLowerCase();
 
         if (
             type === "photo" ||
-            type === "image" ||
-            type.includes("image")
+            type === "image"
         ) {
 
             return "photo";
         }
 
         if (
-            type === "video" ||
-            type.includes("video")
+            type === "video"
         ) {
 
             return "video";
         }
 
         if (
-            type === "audio" ||
-            type.includes("audio")
+            type === "sticker"
+        ) {
+
+            return "sticker";
+        }
+
+        if (
+            type === "audio"
         ) {
 
             return "audio";
@@ -259,10 +262,12 @@ module.exports = function ({ api }) {
     }
 
     // =========================================================
-    // ATTACHMENT URL
+    // GET ATTACHMENT URL
     // =========================================================
 
-    function getAttachmentURL(attachment) {
+    function getAttachmentURL(
+        attachment
+    ) {
 
         if (!attachment) {
             return null;
@@ -284,24 +289,34 @@ module.exports = function ({ api }) {
 
     function cleanupCache() {
 
-        const now = Date.now();
+        const now =
+            Date.now();
 
-        for (const [messageID, cached] of messageCache) {
+        for (
+            const [
+                messageID,
+                data
+            ] of messageCache
+        ) {
 
             if (
-                !cached ||
-                !cached.time ||
-                now - cached.time > CACHE_TTL
+                !data ||
+                !data.time ||
+                now - data.time >
+                    CACHE_TTL
             ) {
 
-                messageCache.delete(messageID);
+                messageCache.delete(
+                    messageID
+                );
             }
         }
 
-        /*
-         * Keep memory usage under control.
-         */
-        if (messageCache.size > MAX_CACHE) {
+        // Keep maximum cache size
+        if (
+            messageCache.size >
+            MAX_CACHE
+        ) {
 
             const entries =
                 [...messageCache.entries()]
@@ -312,9 +327,14 @@ module.exports = function ({ api }) {
                     );
 
             const removeCount =
-                messageCache.size - MAX_CACHE;
+                messageCache.size -
+                MAX_CACHE;
 
-            for (let i = 0; i < removeCount; i++) {
+            for (
+                let i = 0;
+                i < removeCount;
+                i++
+            ) {
 
                 messageCache.delete(
                     entries[i][0]
@@ -323,22 +343,27 @@ module.exports = function ({ api }) {
         }
     }
 
-    // Cleanup every 10 minutes
-    const cleanupTimer = setInterval(
-        cleanupCache,
-        10 * 60 * 1000
-    );
+    // =========================================================
+    // PERIODIC CACHE CLEANUP
+    // =========================================================
+
+    const cleanupTimer =
+        setInterval(
+            cleanupCache,
+            10 * 60 * 1000
+        );
 
     if (
         cleanupTimer &&
-        typeof cleanupTimer.unref === "function"
+        typeof cleanupTimer.unref ===
+        "function"
     ) {
 
         cleanupTimer.unref();
     }
 
     // =========================================================
-    // CACHE MESSAGE
+    // CACHE ORIGINAL MESSAGE
     // =========================================================
 
     function cacheMessage(event) {
@@ -358,8 +383,9 @@ module.exports = function ({ api }) {
         const attachments = [];
 
         if (
-            Array.isArray(event.attachments) &&
-            event.attachments.length > 0
+            Array.isArray(
+                event.attachments
+            )
         ) {
 
             for (
@@ -387,19 +413,23 @@ module.exports = function ({ api }) {
 
                     url,
 
+                    id:
+                        attachment.ID ||
+                        attachment.id ||
+                        null,
+
                     name:
                         attachment.name ||
                         attachment.filename ||
-                        null,
-
-                    ID:
-                        attachment.ID ||
-                        attachment.id ||
                         null
+
                 });
             }
         }
 
+        /*
+         * Save original message.
+         */
         messageCache.set(
             String(messageID),
             {
@@ -411,17 +441,22 @@ module.exports = function ({ api }) {
 
                 senderID:
                     event.senderID
-                        ? String(event.senderID)
+                        ? String(
+                            event.senderID
+                        )
                         : "Unknown",
 
                 threadID:
                     event.threadID
-                        ? String(event.threadID)
+                        ? String(
+                            event.threadID
+                        )
                         : "Unknown",
 
                 body:
-                    event.body ||
-                    "",
+                    String(
+                        event.body || ""
+                    ),
 
                 attachments
 
@@ -432,271 +467,26 @@ module.exports = function ({ api }) {
     }
 
     // =========================================================
-    // CREATE MESSAGE HEADER
+    // PROCESS UNSEND
     // =========================================================
 
-    function makeHeader(
-        title,
+    async function handleUnsend(
         event
     ) {
-
-        return (
-            `${title}\n\n` +
-
-            `👤 Sender UID: ${
-                event.senderID ||
-                "Unknown"
-            }\n` +
-
-            `🆔 Group ID: ${
-                event.threadID ||
-                "Unknown"
-            }\n` +
-
-            `🆔 Message ID: ${
-                event.messageID ||
-                "Unknown"
-            }`
-        );
-    }
-
-    // =========================================================
-    // NORMAL MESSAGE
-    // =========================================================
-
-    async function handleNormalMessage(event) {
-
-        /*
-         * FIRST:
-         * Cache the message BEFORE doing anything else.
-         *
-         * This is important for unsend recovery.
-         */
-        cacheMessage(event);
-
-        const body =
-            String(event.body || "");
-
-        const links =
-            extractLinks(body);
-
-        // =====================================================
-        // LINKS
-        // =====================================================
-
-        if (links.length > 0) {
-
-            const message =
-                `🔗 SAKIB GROUP MONITOR\n\n` +
-
-                `📌 New link/message received\n\n` +
-
-                `👤 Sender UID: ${
-                    event.senderID ||
-                    "Unknown"
-                }\n` +
-
-                `🆔 Group ID: ${
-                    event.threadID ||
-                    "Unknown"
-                }\n\n` +
-
-                `💬 Message:\n` +
-
-                `${body}\n\n` +
-
-                `🔗 Links:\n` +
-
-                `${links.join("\n")}`;
-
-            await sendToAdmins(message);
-        }
-
-        // =====================================================
-        // ATTACHMENTS
-        // =====================================================
-
-        if (
-            !Array.isArray(event.attachments) ||
-            event.attachments.length === 0
-        ) {
-
-            return;
-        }
-
-        for (
-            const attachment
-            of event.attachments
-        ) {
-
-            if (!attachment) {
-                continue;
-            }
-
-            const type =
-                getAttachmentType(
-                    attachment
-                );
-
-            const url =
-                getAttachmentURL(
-                    attachment
-                );
-
-            // =================================================
-            // PHOTO
-            // =================================================
-
-            if (type === "photo") {
-
-                const message =
-                    `🖼️ SAKIB GROUP MONITOR\n\n` +
-
-                    `📸 New photo received\n\n` +
-
-                    `👤 Sender UID: ${
-                        event.senderID ||
-                        "Unknown"
-                    }\n` +
-
-                    `🆔 Group ID: ${
-                        event.threadID ||
-                        "Unknown"
-                    }\n` +
-
-                    `🆔 Message ID: ${
-                        event.messageID ||
-                        "Unknown"
-                    }`;
-
-                /*
-                 * If URL exists:
-                 * send the ACTUAL PHOTO.
-                 */
-                if (url) {
-
-                    await sendAttachmentToAdmins(
-                        message,
-                        url
-                    );
-
-                } else {
-
-                    /*
-                     * Fallback notification
-                     */
-                    await sendToAdmins(
-                        message +
-                        `\n\n⚠️ Photo URL পাওয়া যায়নি।`
-                    );
-                }
-            }
-
-            // =================================================
-            // VIDEO
-            // =================================================
-
-            else if (type === "video") {
-
-                const message =
-                    `🎥 SAKIB GROUP MONITOR\n\n` +
-
-                    `🎬 New video received\n\n` +
-
-                    `👤 Sender UID: ${
-                        event.senderID ||
-                        "Unknown"
-                    }\n` +
-
-                    `🆔 Group ID: ${
-                        event.threadID ||
-                        "Unknown"
-                    }\n` +
-
-                    `🆔 Message ID: ${
-                        event.messageID ||
-                        "Unknown"
-                    }`;
-
-                /*
-                 * Send ACTUAL VIDEO
-                 */
-                if (url) {
-
-                    await sendAttachmentToAdmins(
-                        message,
-                        url
-                    );
-
-                } else {
-
-                    await sendToAdmins(
-                        message +
-                        `\n\n⚠️ Video URL পাওয়া যায়নি।`
-                    );
-                }
-            }
-
-            // =================================================
-            // OTHER ATTACHMENT
-            // =================================================
-
-            else {
-
-                /*
-                 * Cache করা হয়েছে।
-                 * Unknown attachment হলে অন্তত notification.
-                 */
-
-                const message =
-                    `📎 SAKIB GROUP MONITOR\n\n` +
-
-                    `New attachment received\n\n` +
-
-                    `📂 Type: ${type}\n` +
-
-                    `👤 Sender UID: ${
-                        event.senderID ||
-                        "Unknown"
-                    }\n` +
-
-                    `🆔 Group ID: ${
-                        event.threadID ||
-                        "Unknown"
-                    }\n` +
-
-                    `🆔 Message ID: ${
-                        event.messageID ||
-                        "Unknown"
-                    }`;
-
-                await sendToAdmins(message);
-            }
-        }
-    }
-
-    // =========================================================
-    // UNSEND MESSAGE
-    // =========================================================
-
-    async function handleUnsend(event) {
 
         const messageID =
             event.messageID ||
             event.messageId;
 
-        const key =
-            messageID
-                ? String(messageID)
-                : null;
+        if (!messageID) {
+            return;
+        }
 
-        /*
-         * Find original cached message.
-         */
+        const key =
+            String(messageID);
+
         const cached =
-            key
-                ? messageCache.get(key)
-                : null;
+            messageCache.get(key);
 
         // =====================================================
         // CACHE FOUND
@@ -704,37 +494,44 @@ module.exports = function ({ api }) {
 
         if (cached) {
 
-            let message =
-                `🗑️ SAKIB GROUP MONITOR\n\n` +
+            /*
+             * -----------------------------------------------
+             * TEXT UNSEND
+             * -----------------------------------------------
+             */
 
-                `⚠️ A message was unsent.\n\n` +
+            if (
+                cached.body &&
+                cached.body.trim() !== ""
+            ) {
 
-                `👤 Sender UID: ${
-                    cached.senderID
-                }\n` +
+                const textMessage =
+                    `🗑️ SAKIB GROUP MONITOR\n\n` +
 
-                `🆔 Group ID: ${
-                    cached.threadID
-                }\n` +
+                    `⚠️ Message UNSENT\n\n` +
 
-                `🆔 Message ID: ${
-                    cached.messageID
-                }\n\n`;
+                    `👤 Sender UID: ` +
+                    `${cached.senderID}\n` +
 
-            // -------------------------------------------------
-            // ORIGINAL TEXT
-            // -------------------------------------------------
+                    `🆔 Group ID: ` +
+                    `${cached.threadID}\n` +
 
-            if (cached.body) {
+                    `🆔 Message ID: ` +
+                    `${cached.messageID}\n\n` +
 
-                message +=
                     `💬 Original Message:\n` +
-                    `${cached.body}\n\n`;
+                    `${cached.body}`;
+
+                await sendToTargets(
+                    textMessage
+                );
             }
 
-            // -------------------------------------------------
-            // ORIGINAL ATTACHMENT INFO
-            // -------------------------------------------------
+            /*
+             * -----------------------------------------------
+             * ATTACHMENT UNSEND
+             * -----------------------------------------------
+             */
 
             if (
                 Array.isArray(
@@ -743,107 +540,195 @@ module.exports = function ({ api }) {
                 cached.attachments.length > 0
             ) {
 
-                message +=
-                    `📎 Attachments: ` +
-                    `${cached.attachments.length}\n\n`;
-            }
-
-            /*
-             * First send text information.
-             */
-            await sendToAdmins(message);
-
-            // -------------------------------------------------
-            // TRY TO SEND ORIGINAL ATTACHMENTS
-            // -------------------------------------------------
-
-            if (
-                Array.isArray(
-                    cached.attachments
-                )
-            ) {
-
                 for (
                     const attachment
                     of cached.attachments
                 ) {
 
-                    if (!attachment.url) {
-                        continue;
-                    }
-
-                    let title;
+                    // =========================================
+                    // PHOTO
+                    // =========================================
 
                     if (
                         attachment.type ===
                         "photo"
                     ) {
 
-                        title =
+                        const message =
                             `🗑️ SAKIB GROUP MONITOR\n\n` +
-                            `📸 Unsent photo\n\n` +
-                            `👤 Sender UID: ${
-                                cached.senderID
-                            }\n` +
-                            `🆔 Group ID: ${
-                                cached.threadID
-                            }\n` +
-                            `🆔 Message ID: ${
-                                cached.messageID
-                            }`;
 
-                    } else if (
+                            `📸 PHOTO UNSENT\n\n` +
+
+                            `👤 Sender UID: ` +
+                            `${cached.senderID}\n` +
+
+                            `🆔 Group ID: ` +
+                            `${cached.threadID}\n` +
+
+                            `🆔 Message ID: ` +
+                            `${cached.messageID}`;
+
+                        if (
+                            attachment.url
+                        ) {
+
+                            const success =
+                                await sendAttachment(
+                                    message,
+                                    attachment.url
+                                );
+
+                            /*
+                             * URL failed হলে শুধু
+                             * information পাঠাবে।
+                             */
+                            if (!success) {
+
+                                await sendToTargets(
+                                    message +
+                                    `\n\n⚠️ ` +
+                                    `Photo URL expired ` +
+                                    `or unavailable.`
+                                );
+                            }
+
+                        } else {
+
+                            await sendToTargets(
+                                message +
+                                `\n\n⚠️ ` +
+                                `Original photo URL ` +
+                                `unavailable.`
+                            );
+                        }
+                    }
+
+                    // =========================================
+                    // VIDEO
+                    // =========================================
+
+                    else if (
                         attachment.type ===
                         "video"
                     ) {
 
-                        title =
+                        const message =
                             `🗑️ SAKIB GROUP MONITOR\n\n` +
-                            `🎥 Unsent video\n\n` +
-                            `👤 Sender UID: ${
-                                cached.senderID
-                            }\n` +
-                            `🆔 Group ID: ${
-                                cached.threadID
-                            }\n` +
-                            `🆔 Message ID: ${
-                                cached.messageID
-                            }`;
 
-                    } else {
+                            `🎥 VIDEO UNSENT\n\n` +
 
-                        title =
-                            `🗑️ SAKIB GROUP MONITOR\n\n` +
-                            `📎 Unsent attachment\n\n` +
-                            `👤 Sender UID: ${
-                                cached.senderID
-                            }\n` +
-                            `🆔 Group ID: ${
-                                cached.threadID
-                            }\n` +
-                            `🆔 Message ID: ${
-                                cached.messageID
-                            }`;
+                            `👤 Sender UID: ` +
+                            `${cached.senderID}\n` +
+
+                            `🆔 Group ID: ` +
+                            `${cached.threadID}\n` +
+
+                            `🆔 Message ID: ` +
+                            `${cached.messageID}`;
+
+                        if (
+                            attachment.url
+                        ) {
+
+                            const success =
+                                await sendAttachment(
+                                    message,
+                                    attachment.url
+                                );
+
+                            if (!success) {
+
+                                await sendToTargets(
+                                    message +
+                                    `\n\n⚠️ ` +
+                                    `Video URL expired ` +
+                                    `or unavailable.`
+                                );
+                            }
+
+                        } else {
+
+                            await sendToTargets(
+                                message +
+                                `\n\n⚠️ ` +
+                                `Original video URL ` +
+                                `unavailable.`
+                            );
+                        }
                     }
 
-                    /*
-                     * Try sending original attachment.
-                     *
-                     * Note:
-                     * Facebook attachment URLs can expire.
-                     * If expired, this will fail gracefully.
-                     */
-                    await sendAttachmentToAdmins(
-                        title,
-                        attachment.url
-                    );
+                    // =========================================
+                    // STICKER
+                    // =========================================
+
+                    else if (
+                        attachment.type ===
+                        "sticker"
+                    ) {
+
+                        /*
+                         * Sticker পাঠানোর সময় কোনো
+                         * notification যায়নি।
+                         *
+                         * কিন্তু sticker UNSEND হলে
+                         * তখন notification যাবে।
+                         */
+
+                        const message =
+                            `🗑️ SAKIB GROUP MONITOR\n\n` +
+
+                            `🎭 STICKER UNSENT\n\n` +
+
+                            `👤 Sender UID: ` +
+                            `${cached.senderID}\n` +
+
+                            `🆔 Group ID: ` +
+                            `${cached.threadID}\n` +
+
+                            `🆔 Message ID: ` +
+                            `${cached.messageID}`;
+
+                        await sendToTargets(
+                            message
+                        );
+                    }
+
+                    // =========================================
+                    // OTHER ATTACHMENT
+                    // =========================================
+
+                    else {
+
+                        const message =
+                            `🗑️ SAKIB GROUP MONITOR\n\n` +
+
+                            `📎 ATTACHMENT UNSENT\n\n` +
+
+                            `📂 Type: ` +
+                            `${attachment.type}\n\n` +
+
+                            `👤 Sender UID: ` +
+                            `${cached.senderID}\n` +
+
+                            `🆔 Group ID: ` +
+                            `${cached.threadID}\n` +
+
+                            `🆔 Message ID: ` +
+                            `${cached.messageID}`;
+
+                        await sendToTargets(
+                            message
+                        );
+                    }
                 }
             }
 
             /*
-             * Delete from cache after processing.
+             * Remove after processing.
              */
-            messageCache.delete(key);
+            messageCache.delete(
+                key
+            );
 
             return;
         }
@@ -853,67 +738,60 @@ module.exports = function ({ api }) {
         // =====================================================
 
         /*
-         * We cannot recover the original content if it was
-         * never cached.
+         * Original content cache-এ না থাকলে
+         * শুধু UNSEND notification।
          */
 
         const message =
             `🗑️ SAKIB GROUP MONITOR\n\n` +
 
-            `⚠️ A message was unsent.\n\n` +
+            `⚠️ Message UNSENT\n\n` +
 
-            `❌ Original message was not found in cache.\n\n` +
+            `❌ Original message was not found ` +
+            `in cache.\n\n` +
 
-            `👤 Sender UID: ${
-                event.senderID ||
-                "Unknown"
-            }\n` +
+            `👤 Sender UID: ` +
+            `${event.senderID || "Unknown"}\n` +
 
-            `🆔 Group ID: ${
-                event.threadID ||
-                "Unknown"
-            }\n` +
+            `🆔 Group ID: ` +
+            `${event.threadID || "Unknown"}\n` +
 
-            `🆔 Message ID: ${
-                messageID ||
-                "Unknown"
-            }\n\n` +
+            `🆔 Message ID: ` +
+            `${messageID}`;
 
-            `ℹ️ The message must have been received by the bot before it was unsent.`;
-
-        await sendToAdmins(message);
+        await sendToTargets(
+            message
+        );
     }
 
     // =========================================================
     // MAIN MONITOR
     // =========================================================
 
-    return async function monitor({ event }) {
+    return async function monitor({
+        event
+    }) {
 
         if (!event) {
             return;
         }
 
-        /*
-         * Must have thread ID.
-         */
         if (!event.threadID) {
             return;
         }
 
         /*
-         * Only group/thread monitoring.
+         * Ignore bot's own messages.
          */
         const botID =
             getBotID();
 
-        /*
-         * Ignore bot's own messages.
-         */
         if (
             botID &&
             event.senderID &&
-            String(event.senderID) === botID
+            String(
+                event.senderID
+            ) === botID
         ) {
 
             return;
@@ -928,9 +806,16 @@ module.exports = function ({ api }) {
             event.type === "message_reply"
         ) {
 
-            await handleNormalMessage(
-                event
-            );
+            /*
+             * IMPORTANT:
+             *
+             * এখানে কোনো notification নেই।
+             *
+             * শুধু future UNSEND-এর জন্য
+             * original message cache করা হচ্ছে।
+             */
+
+            cacheMessage(event);
 
             return;
         }
