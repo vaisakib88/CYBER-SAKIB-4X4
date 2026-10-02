@@ -1,46 +1,118 @@
+const axios = require("axios");
+
 module.exports.config = {
   name: "hug2",
-  version: "1.0.0",
+  version: "2.0.0",
   permission: 0,
   credits: "SAKIB",
-  description: "Send hug using canvas API (stream version)",
+  description: "Send hug using SAKIB Hug API",
   prefix: false,
   category: "fun",
-  usages: "hug @mention",
+  usages: "hug2 @mention",
   cooldowns: 5,
   dependencies: {
-    "axios": ""
+    axios: ""
   }
 };
 
-const axios = require("axios");
+// তোমার Railway Hug API
+const HUG_API =
+  "https://cyber-sakib-4x4-production.up.railway.app/hug";
 
 module.exports.run = async ({ api, event }) => {
-  const { threadID, messageID, senderID, mentions } = event;
+  const {
+    threadID,
+    messageID,
+    senderID,
+    mentions = {}
+  } = event;
 
-  if (Object.keys(mentions).length === 0) {
-    return api.sendMessage("Please mention someone to hug.", threadID, messageID);
+  const mentionIDs = Object.keys(mentions);
+
+  if (mentionIDs.length === 0) {
+    return api.sendMessage(
+      "🤗 Please mention someone to hug.\n\nExample: hug2 @mention",
+      threadID,
+      messageID
+    );
   }
 
-  const mentionID = Object.keys(mentions)[0];
-  const mentionName = mentions[mentionID];
+  const targetID = String(mentionIDs[0]);
 
-  const imgURL = `${global.SAKIBapi.canvas}/hug2?one=${senderID}&two=${mentionID}`;
+  let targetName = mentions[targetID];
+
+  if (typeof targetName === "object" && targetName?.tag) {
+    targetName = targetName.tag;
+  }
+
+  targetName = String(targetName || "your friend")
+    .replace(/^@/, "");
+
+  const imgURL =
+    `${HUG_API}` +
+    `?one=${encodeURIComponent(String(senderID))}` +
+    `&two=${encodeURIComponent(targetID)}`;
+
+  console.log("");
+  console.log("========== SAKIB HUG2 ==========");
+  console.log("Sender UID :", senderID);
+  console.log("Target UID :", targetID);
+  console.log("Target Name:", targetName);
+  console.log("API URL    :", imgURL);
+  console.log("================================");
 
   try {
-    const response = await axios({
-      url: imgURL,
-      method: 'GET',
-      responseType: 'stream'
+    const response = await axios.get(imgURL, {
+      responseType: "stream",
+      timeout: 30000,
+      maxRedirects: 5,
+      validateStatus: () => true,
+      headers: {
+        "User-Agent": "SAKIB-Messenger-Bot/2.0"
+      }
     });
 
-    api.sendMessage({
-      body: `🤗 ${mentionName}, you just got a hug!`,
-      attachment: response.data
-    }, threadID, messageID);
+    if (response.status !== 200) {
+      return api.sendMessage(
+        `❌ Hug API Error: HTTP ${response.status}`,
+        threadID,
+        messageID
+      );
+    }
 
-  } catch (err) {
-    console.error(err);
-    api.sendMessage("Something went wrong. Please try again later.", threadID, messageID);
+    const contentType = String(
+      response.headers["content-type"] || ""
+    ).toLowerCase();
+
+    if (!contentType.startsWith("image/")) {
+      return api.sendMessage(
+        "❌ Hug API থেকে image পাওয়া যায়নি।",
+        threadID,
+        messageID
+      );
+    }
+
+    return api.sendMessage(
+      {
+        body:
+          `🤗 ${targetName}, তুমি একটা Hug পেয়েছো! ❤️\n` +
+          `— SAKIB BOT 🫂`,
+        attachment: response.data
+      },
+      threadID,
+      messageID
+    );
+
+  } catch (error) {
+    console.error(
+      "[SAKIB HUG2 ERROR]",
+      error.message
+    );
+
+    return api.sendMessage(
+      `❌ Hug API connection failed.\n\n${error.message}`,
+      threadID,
+      messageID
+    );
   }
 };
