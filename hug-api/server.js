@@ -14,23 +14,19 @@ const SERVICE_NAME = "SAKIB HUG API";
 
 
 // ==========================================
-// VALID UID
-// ==========================================
-
-function validUID(uid) {
-  return /^\d{5,30}$/.test(String(uid || ""));
-}
-
-
-// ==========================================
 // GET FACEBOOK PROFILE IMAGE (ULTIMATE FIX)
 // ==========================================
 
-async function getProfileImage(uid) {
+async function getProfileImage(input) {
+  let targetUrl = input;
+  
+  if (/^\d{5,30}$/.test(input)) {
+    targetUrl = `https://graph.facebook.com/${input}/picture?height=720&width=720`;
+  }
+
   const urls = [
-    `https://graph.facebook.com/${encodeURIComponent(uid)}/picture?height=720&width=720&migration_overrides=%7Boctober_2012_classic%3Atrue%7D`,
-    `https://graph.facebook.com/${encodeURIComponent(uid)}/picture?type=large`,
-    `https://graph.facebook.com/v13.0/${encodeURIComponent(uid)}/picture?height=720&width=720&access_token=6628568379|c1e620fa708a1d5696fb991c1bde5662`
+    targetUrl,
+    `https://graph.facebook.com/v13.0/${encodeURIComponent(input)}/picture?height=720&width=720`
   ];
 
   for (const url of urls) {
@@ -41,8 +37,7 @@ async function getProfileImage(uid) {
         maxRedirects: 5,
         headers: {
           "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1",
-          "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
-          "Accept-Language": "en-US,en;q=0.9"
+          "Accept": "image/*,*/*;q=0.8"
         }
       });
 
@@ -50,11 +45,11 @@ async function getProfileImage(uid) {
         return Buffer.from(response.data);
       }
     } catch (err) {
-      // Try next URL
+      // Try next
     }
   }
 
-  // Fallback avatar (যাতে কোনোভাবেই ক্রাশ না করে)
+  // Fallback gray box if all fails
   return await sharp({
     create: {
       width: 720,
@@ -236,7 +231,7 @@ app.get("/", (req, res) => {
     ok: true,
     name: SERVICE_NAME,
     status: "online",
-    endpoint: "/hug?one=UID1&two=UID2"
+    endpoint: "/hug?img1=URL1&img2=URL2"
   });
 });
 
@@ -259,30 +254,22 @@ app.get("/health", (req, res) => {
 // ==========================================
 
 app.get("/hug", async (req, res) => {
-  const one = String(req.query.one || "").trim();
-  const two = String(req.query.two || "").trim();
+  const img1Url = String(req.query.img1 || req.query.one || "").trim();
+  const img2Url = String(req.query.img2 || req.query.two || "").trim();
 
   console.log("");
   console.log("================================");
   console.log("        SAKIB HUG REQUEST");
   console.log("================================");
-  console.log("ONE :", one);
-  console.log("TWO :", two);
-
-  if (!validUID(one) || !validUID(two)) {
-    console.log("❌ Invalid UID");
-    return res.status(400).json({
-      ok: false,
-      error: "Both one and two must be valid numeric Facebook user IDs."
-    });
-  }
+  console.log("IMG 1:", img1Url);
+  console.log("IMG 2:", img2Url);
 
   try {
     console.log("📥 Downloading profile images...");
 
     const [img1, img2] = await Promise.all([
-      getProfileImage(one),
-      getProfileImage(two)
+      getProfileImage(img1Url),
+      getProfileImage(img2Url)
     ]);
 
     console.log("✅ Profile images downloaded");
@@ -350,16 +337,10 @@ app.get("/hug", async (req, res) => {
     console.error("❌ SAKIB HUG API ERROR");
     console.error(error.message);
 
-    if (error.response && error.response.status) {
-      console.error("Facebook HTTP:", error.response.status);
-    }
-
     return res.status(502).json({
       ok: false,
       error: "Failed to create hug image.",
-      details: error.response?.status
-        ? `Profile image request returned HTTP ${error.response.status}.`
-        : error.message
+      details: error.message
     });
   }
 });
