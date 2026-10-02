@@ -5,7 +5,7 @@ const axios = require("axios");
 
 module.exports.config = {
     name: "hug",
-    version: "4.0.1",
+    version: "4.1.0",
     permission: 0,
     credits: "SAKIB",
     description: "Hug someone by replying or mentioning",
@@ -181,6 +181,30 @@ function getMentionName(event, targetID) {
 
 /*
 =========================================================
+ FETCH USER AVATAR URL VIA FB API
+=========================================================
+*/
+
+async function getUserAvatar(api, userID) {
+    try {
+        return new Promise((resolve) => {
+            api.getUserInfo(userID, (err, ret) => {
+                if (err || !ret || !ret[userID]) {
+                    // Fallback to graph profile picture URL if userInfo fails
+                    return resolve(`https://graph.facebook.com/${userID}/picture?height=720&width=720&migration_overrides=%7Boctober_2012_classic%3Atrue%7D`);
+                }
+                const userInfo = ret[userID];
+                const avatar = userInfo.thumbSrc || userInfo.profileUrl || `https://graph.facebook.com/${userID}/picture?height=720&width=720`;
+                resolve(avatar);
+            });
+        });
+    } catch (e) {
+        return `https://graph.facebook.com/${userID}/picture?height=720&width=720`;
+    }
+}
+
+/*
+=========================================================
  COMMAND
 =========================================================
 */
@@ -199,13 +223,11 @@ module.exports.run = async function ({ api, event }) {
 
         let targetID = null;
         let targetName = "your friend";
-        let targetType = null;
 
         if (event.messageReply) {
             targetID = getReplyTarget(event);
             if (targetID) {
                 targetName = getReplyTargetName(event);
-                targetType = "REPLY";
             }
         }
 
@@ -213,7 +235,6 @@ module.exports.run = async function ({ api, event }) {
             targetID = getMentionTarget(event);
             if (targetID) {
                 targetName = getMentionName(event, targetID);
-                targetType = "MENTION";
             }
         }
 
@@ -253,12 +274,16 @@ module.exports.run = async function ({ api, event }) {
             );
         }
 
+        // Fetch direct avatar URLs using bot api
+        const senderAvatar = await getUserAvatar(api, senderID);
+        const targetAvatar = await getUserAvatar(api, targetID);
+
         const separator = baseURL.includes("?") ? "&" : "?";
 
         const apiURL =
             `${baseURL}${separator}` +
-            `one=${encodeURIComponent(senderID)}` +
-            `&two=${encodeURIComponent(targetID)}`;
+            `img1=${encodeURIComponent(senderAvatar)}` +
+            `&img2=${encodeURIComponent(targetAvatar)}`;
 
         let response;
 
@@ -271,7 +296,7 @@ module.exports.run = async function ({ api, event }) {
                     maxRedirects: 5,
                     validateStatus: () => true,
                     headers: {
-                        "User-Agent": "Mozilla/5.0 SAKIB-HUG-BOT/4.0",
+                        "User-Agent": "Mozilla/5.0 SAKIB-HUG-BOT/4.1",
                         "Accept": "image/png,image/jpeg,image/webp,image/*,*/*"
                     }
                 }
