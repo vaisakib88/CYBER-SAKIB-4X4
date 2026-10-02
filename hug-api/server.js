@@ -23,41 +23,44 @@ function validUID(uid) {
 
 
 // ==========================================
-// GET FACEBOOK PROFILE IMAGE (UPDATED)
+// GET FACEBOOK PROFILE IMAGE (ULTIMATE FIX)
 // ==========================================
 
 async function getProfileImage(uid) {
   const urls = [
     `https://graph.facebook.com/${encodeURIComponent(uid)}/picture?height=720&width=720&migration_overrides=%7Boctober_2012_classic%3Atrue%7D`,
-    `https://graph.facebook.com/${encodeURIComponent(uid)}/picture?type=large`
+    `https://graph.facebook.com/${encodeURIComponent(uid)}/picture?type=large`,
+    `https://graph.facebook.com/v13.0/${encodeURIComponent(uid)}/picture?height=720&width=720&access_token=6628568379|c1e620fa708a1d5696fb991c1bde5662`
   ];
 
   for (const url of urls) {
     try {
       const response = await axios.get(url, {
         responseType: "arraybuffer",
-        timeout: 10000,
+        timeout: 12000,
         maxRedirects: 5,
         headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+          "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1",
+          "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+          "Accept-Language": "en-US,en;q=0.9"
         }
       });
 
-      if (response.data && response.data.byteLength > 1000) {
+      if (response.data && response.data.byteLength > 1500) {
         return Buffer.from(response.data);
       }
     } catch (err) {
-      // Ignore and try next
+      // Try next URL
     }
   }
 
-  // Fallback image if fetch fails
+  // Fallback avatar (যাতে কোনোভাবেই ক্রাশ না করে)
   return await sharp({
     create: {
       width: 720,
       height: 720,
       channels: 4,
-      background: { r: 200, g: 200, b: 200, alpha: 1 }
+      background: { r: 230, g: 230, b: 230, alpha: 1 }
     }
   }).png().toBuffer();
 }
