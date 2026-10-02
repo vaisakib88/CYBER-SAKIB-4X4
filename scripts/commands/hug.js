@@ -3,432 +3,467 @@ const path = require("path");
 const os = require("os");
 const axios = require("axios");
 
-// ==========================================
-// COMMAND CONFIG
-// ==========================================
-
 module.exports.config = {
-  name: "hug",
-  version: "3.0.0",
-  permission: 0,
-  credits: "SAKIB",
-  description: "Send hug image to a mentioned person",
-  prefix: false,
-  category: "fun",
-  usages: "hug @mention",
-  cooldowns: 5,
-
-  dependencies: {
-    axios: ""
-  }
+    name: "hug",
+    version: "3.0.0",
+    permission: 0,
+    credits: "SAKIB",
+    description: "Send a hug image to a mentioned or replied person",
+    prefix: false,
+    category: "fun",
+    usages: "hug | hug @mention",
+    cooldowns: 5,
+    dependencies: {
+        axios: ""
+    }
 };
 
-// ==========================================
-// HUG API CONFIG
-// ==========================================
-
 const API_CONFIG_PATH = path.join(
-  __dirname,
-  "../../main/configs/hug_api.json"
+    __dirname,
+    "../../main/configs/hug_api.json"
 );
 
-// ==========================================
-// GET HUG API
-// ==========================================
-
+/**
+ * Load Hug API URL
+ */
 function getHugAPI() {
-  try {
-    if (!fs.existsSync(API_CONFIG_PATH)) {
-      console.error(
-        "[SAKIB HUG] Config file not found:",
-        API_CONFIG_PATH
-      );
-      return null;
+    try {
+        if (!fs.existsSync(API_CONFIG_PATH)) {
+            console.error("[SAKIB HUG] hug_api.json not found");
+            return null;
+        }
+
+        const data = JSON.parse(
+            fs.readFileSync(API_CONFIG_PATH, "utf8")
+        );
+
+        return String(data.hug || "").trim();
+    } catch (error) {
+        console.error(
+            "[SAKIB HUG] Config error:",
+            error.message
+        );
+
+        return null;
+    }
+}
+
+/**
+ * Get target UID from reply
+ */
+function getReplyTarget(event) {
+    if (!event.messageReply) {
+        return null;
     }
 
-    const config = JSON.parse(
-      fs.readFileSync(API_CONFIG_PATH, "utf8")
-    );
+    const reply = event.messageReply;
 
-    const url = String(config.hug || "").trim();
-
-    if (!url) {
-      console.error("[SAKIB HUG] hug API URL is empty.");
-      return null;
+    // Messenger reply normally contains senderID
+    if (reply.senderID) {
+        return String(reply.senderID);
     }
 
-    return url;
+    // Some versions may use author
+    if (reply.author) {
+        return String(reply.author);
+    }
 
-  } catch (error) {
-    console.error(
-      "[SAKIB HUG] Config error:",
-      error.message
-    );
+    // Some versions may provide userID
+    if (reply.userID) {
+        return String(reply.userID);
+    }
 
     return null;
-  }
 }
 
-// ==========================================
-// GET TARGET FROM MENTION
-// ==========================================
-
-function getMentionTarget(event) {
-  const mentions = event.mentions || {};
-
-  const ids = Object.keys(mentions);
-
-  if (ids.length > 0) {
-    const targetID = String(ids[0]);
-    const data = mentions[targetID];
-
-    let name = "your friend";
-
-    if (
-      data &&
-      typeof data === "object" &&
-      data.tag
-    ) {
-      name = String(data.tag).replace(/^@/, "").trim();
-    } else if (typeof data === "string") {
-      name = data.replace(/^@/, "").trim();
+/**
+ * Get target name from reply
+ */
+function getReplyTargetName(event) {
+    if (!event.messageReply) {
+        return "your friend";
     }
 
-    return {
-      id: targetID,
-      name
-    };
-  }
+    const reply = event.messageReply;
 
-  return null;
+    if (reply.body) {
+        return "your friend";
+    }
+
+    return "your friend";
 }
 
-// ==========================================
-// COMMAND RUN
-// ==========================================
+/**
+ * Get target from mention
+ */
+function getMentionTarget(event) {
+    const mentions = event.mentions || {};
+    const ids = Object.keys(mentions);
 
-module.exports.run = async function ({
-  api,
-  event
-}) {
+    if (ids.length === 0) {
+        return null;
+    }
 
-  try {
+    return String(ids[0]);
+}
+
+/**
+ * Get mention name
+ */
+function getMentionName(event, targetID) {
+    const mentions = event.mentions || {};
+    const data = mentions[targetID];
+
+    if (!data) {
+        return "your friend";
+    }
+
+    if (typeof data === "object" && data.tag) {
+        return String(data.tag).replace(/^@/, "");
+    }
+
+    if (typeof data === "string") {
+        return data.replace(/^@/, "");
+    }
+
+    return "your friend";
+}
+
+module.exports.run = async ({ api, event }) => {
 
     const threadID = event.threadID;
     const messageID = event.messageID;
     const senderID = String(event.senderID);
 
-    // ======================================
-    // GET MENTION
-    // ======================================
+    /*
+     * =========================================================
+     * 1. FIRST PRIORITY: REPLY
+     * =========================================================
+     *
+     * User:
+     * Reply to someone's message
+     * hug
+     *
+     * Then that person's UID becomes target.
+     */
 
-    const target = getMentionTarget(event);
+    let targetID = getReplyTarget(event);
+    let targetName = getReplyTargetName(event);
 
-    if (!target) {
+    let targetType = "REPLY";
 
-      console.log(
-        "[SAKIB HUG] No valid mention found."
-      );
+    /*
+     * =========================================================
+     * 2. SECOND PRIORITY: MENTION
+     * =========================================================
+     *
+     * User:
+     * hug @someone
+     */
 
-      return api.sendMessage(
-        "🤗 Please mention someone to hug.\n\nExample: -hug @name",
-        threadID,
-        messageID
-      );
+    if (!targetID) {
+        targetID = getMentionTarget(event);
+
+        if (targetID) {
+            targetName = getMentionName(
+                event,
+                targetID
+            );
+
+            targetType = "MENTION";
+        }
     }
 
-    const targetID = target.id;
-    const targetName = target.name;
+    /*
+     * =========================================================
+     * 3. NO TARGET
+     * =========================================================
+     */
 
-    // ======================================
-    // GET API
-    // ======================================
+    if (!targetID) {
+        return api.sendMessage(
+            "🤗 যাকে Hug দিতে চাও তার message-এ Reply করে `hug` লিখো।\n\nঅথবা:\n`hug @mention`",
+            threadID,
+            messageID
+        );
+    }
+
+    /*
+     * Prevent hugging the bot itself
+     */
+
+    let botID = null;
+
+    try {
+        if (typeof api.getCurrentUserID === "function") {
+            botID = String(api.getCurrentUserID());
+        }
+    } catch (_) {}
+
+    if (botID && targetID === botID) {
+        return api.sendMessage(
+            "😳 আমাকে আবার Hug দিচ্ছো নাকি? 🤭❤️",
+            threadID,
+            messageID
+        );
+    }
+
+    /*
+     * =========================================================
+     * LOAD API
+     * =========================================================
+     */
 
     const baseURL = getHugAPI();
 
     if (!baseURL) {
-
-      return api.sendMessage(
-        "❌ Hug API configuration পাওয়া যায়নি।",
-        threadID,
-        messageID
-      );
+        return api.sendMessage(
+            "❌ Hug API configuration পাওয়া যায়নি।",
+            threadID,
+            messageID
+        );
     }
 
-    // ======================================
-    // REMOVE TRAILING SLASH
-    // ======================================
+    if (
+        baseURL.includes("YOUR-RENDER-APP") ||
+        baseURL.includes("YOUR-RAILWAY-APP") ||
+        baseURL.includes("YOUR-HUG-API")
+    ) {
+        return api.sendMessage(
+            "❌ main/configs/hug_api.json-এ তোমার Hug API URL বসাও।",
+            threadID,
+            messageID
+        );
+    }
 
-    const cleanURL = baseURL.replace(/\/+$/, "");
+    /*
+     * =========================================================
+     * BUILD API URL
+     * =========================================================
+     */
 
-    // ======================================
-    // BUILD API URL
-    // ======================================
+    const separator = baseURL.includes("?")
+        ? "&"
+        : "?";
 
     const apiURL =
-      `${cleanURL}` +
-      `?one=${encodeURIComponent(senderID)}` +
-      `&two=${encodeURIComponent(targetID)}`;
+        `${baseURL}${separator}` +
+        `one=${encodeURIComponent(senderID)}` +
+        `&two=${encodeURIComponent(targetID)}`;
 
-    // ======================================
-    // LOG
-    // ======================================
+    /*
+     * =========================================================
+     * LOG
+     * =========================================================
+     */
 
     console.log("");
-    console.log("================================");
-    console.log("        SAKIB HUG");
-    console.log("================================");
+    console.log("======================================");
+    console.log("          SAKIB HUG COMMAND");
+    console.log("======================================");
+    console.log("Type       :", targetType);
     console.log("Sender UID :", senderID);
     console.log("Target UID :", targetID);
     console.log("Target Name:", targetName);
     console.log("API URL    :", apiURL);
-    console.log("================================");
+    console.log("======================================");
     console.log("");
 
-    // ======================================
-    // REQUEST API
-    // ======================================
+    /*
+     * =========================================================
+     * REQUEST API
+     * =========================================================
+     */
 
     let response;
 
     try {
-
-      response = await axios.get(
-        apiURL,
-        {
-          responseType: "arraybuffer",
-
-          timeout: 60000,
-
-          validateStatus: () => true,
-
-          headers: {
-            "User-Agent":
-              "Mozilla/5.0 SAKIB-HUG-BOT",
-            "Accept":
-              "image/png,image/jpeg,image/webp,*/*"
-          }
-        }
-      );
-
+        response = await axios.get(apiURL, {
+            responseType: "arraybuffer",
+            timeout: 30000,
+            maxRedirects: 5,
+            validateStatus: () => true,
+            headers: {
+                "User-Agent":
+                    "Mozilla/5.0 SAKIB-Messenger-Bot/3.0"
+            }
+        });
     } catch (error) {
 
-      console.error(
-        "[SAKIB HUG] API connection error:",
-        error.message
-      );
+        console.error(
+            "[SAKIB HUG] Request error:",
+            error.message
+        );
 
-      return api.sendMessage(
-        "❌ Hug API-তে connection করা যায়নি.\n\n" +
-        error.message,
-        threadID,
-        messageID
-      );
+        return api.sendMessage(
+            `❌ Hug API connection failed.\n\n${error.message}`,
+            threadID,
+            messageID
+        );
     }
 
-    // ======================================
-    // HTTP ERROR
-    // ======================================
+    /*
+     * =========================================================
+     * API ERROR
+     * =========================================================
+     */
 
     if (response.status !== 200) {
 
-      let errorText = "";
+        let errorText = "";
 
-      try {
+        try {
+            errorText = Buffer
+                .from(response.data)
+                .toString("utf8")
+                .slice(0, 1000);
+        } catch (_) {}
 
-        errorText = Buffer
-          .from(response.data)
-          .toString("utf8")
-          .slice(0, 1000);
+        console.error(
+            "[SAKIB HUG API ERROR]",
+            response.status,
+            errorText
+        );
 
-      } catch (_) {}
-
-      console.error(
-        "[SAKIB HUG] HTTP ERROR:",
-        response.status,
-        errorText
-      );
-
-      return api.sendMessage(
-        `❌ Hug API error: HTTP ${response.status}\n\n${errorText}`,
-        threadID,
-        messageID
-      );
+        return api.sendMessage(
+            `❌ Hug API Error: HTTP ${response.status}\n\n${errorText}`,
+            threadID,
+            messageID
+        );
     }
 
-    // ======================================
-    // CONTENT TYPE
-    // ======================================
+    /*
+     * =========================================================
+     * CHECK IMAGE
+     * =========================================================
+     */
 
     const contentType = String(
-      response.headers["content-type"] || ""
+        response.headers["content-type"] || ""
     ).toLowerCase();
-
-    console.log(
-      "[SAKIB HUG] Content-Type:",
-      contentType
-    );
-
-    // ======================================
-    // CHECK IMAGE
-    // ======================================
 
     if (!contentType.startsWith("image/")) {
 
-      let text = "";
+        let text = "";
 
-      try {
+        try {
+            text = Buffer
+                .from(response.data)
+                .toString("utf8")
+                .slice(0, 1000);
+        } catch (_) {}
 
-        text = Buffer
-          .from(response.data)
-          .toString("utf8")
-          .slice(0, 1000);
-
-      } catch (_) {}
-
-      console.error(
-        "[SAKIB HUG] API did not return image:",
-        text
-      );
-
-      return api.sendMessage(
-        "❌ Hug API image দেয়নি.\n\n" +
-        text,
-        threadID,
-        messageID
-      );
+        return api.sendMessage(
+            `❌ Hug API image দেয়নি।\n\n${text}`,
+            threadID,
+            messageID
+        );
     }
 
-    // ======================================
-    // IMAGE EXTENSION
-    // ======================================
+    /*
+     * =========================================================
+     * FILE EXTENSION
+     * =========================================================
+     */
 
     let extension = "png";
 
     if (contentType.includes("jpeg")) {
-      extension = "jpg";
+        extension = "jpg";
+    } else if (contentType.includes("gif")) {
+        extension = "gif";
+    } else if (contentType.includes("webp")) {
+        extension = "webp";
     }
 
-    if (contentType.includes("jpg")) {
-      extension = "jpg";
-    }
-
-    if (contentType.includes("webp")) {
-      extension = "webp";
-    }
-
-    if (contentType.includes("gif")) {
-      extension = "gif";
-    }
-
-    // ======================================
-    // TEMP FILE
-    // ======================================
+    /*
+     * =========================================================
+     * SAVE TEMP IMAGE
+     * =========================================================
+     */
 
     const tempFile = path.join(
-      os.tmpdir(),
-      `SAKIB_HUG_${Date.now()}.${extension}`
+        os.tmpdir(),
+        `sakib_hug_${Date.now()}.${extension}`
     );
-
-    // ======================================
-    // SAVE IMAGE
-    // ======================================
 
     try {
 
-      fs.writeFileSync(
-        tempFile,
-        Buffer.from(response.data)
-      );
+        fs.writeFileSync(
+            tempFile,
+            Buffer.from(response.data)
+        );
 
     } catch (error) {
 
-      console.error(
-        "[SAKIB HUG] File save error:",
-        error.message
-      );
+        console.error(
+            "[SAKIB HUG] File save error:",
+            error.message
+        );
 
-      return api.sendMessage(
-        "❌ Hug image save করা যায়নি.",
-        threadID,
-        messageID
-      );
+        return api.sendMessage(
+            "❌ Hug image save করা যায়নি।",
+            threadID,
+            messageID
+        );
     }
 
-    console.log(
-      "[SAKIB HUG] Image saved:",
-      tempFile
-    );
+    /*
+     * =========================================================
+     * SEND IMAGE
+     * =========================================================
+     */
 
-    // ======================================
-    // SEND IMAGE
-    // ======================================
+    try {
 
-    return api.sendMessage(
-      {
-        body:
-          `🤗 ${targetName}, you just got a hug! ❤️`,
+        return api.sendMessage(
+            {
+                body:
+                    `🤗 ${targetName}, তোমার জন্য একটা Hug! ❤️\n` +
+                    `— SAKIB BOT 🫂`,
 
-        attachment:
-          fs.createReadStream(tempFile)
-      },
+                attachment:
+                    fs.createReadStream(tempFile)
+            },
 
-      threadID,
+            threadID,
 
-      (error) => {
+            (error) => {
 
-        // ================================
-        // DELETE TEMP FILE
-        // ================================
+                try {
+                    if (fs.existsSync(tempFile)) {
+                        fs.unlinkSync(tempFile);
+                    }
+                } catch (_) {}
+
+                if (error) {
+                    console.error(
+                        "[SAKIB HUG] Send error:",
+                        error.message
+                    );
+                }
+            },
+
+            messageID
+        );
+
+    } catch (error) {
 
         try {
+            if (fs.existsSync(tempFile)) {
+                fs.unlinkSync(tempFile);
+            }
+        } catch (_) {}
 
-          if (fs.existsSync(tempFile)) {
-            fs.unlinkSync(tempFile);
-          }
-
-        } catch (deleteError) {
-
-          console.error(
-            "[SAKIB HUG] Temp delete error:",
-            deleteError.message
-          );
-        }
-
-        // ================================
-        // SEND ERROR
-        // ================================
-
-        if (error) {
-
-          console.error(
-            "[SAKIB HUG] Messenger send error:",
+        console.error(
+            "[SAKIB HUG] Send exception:",
             error.message
-          );
+        );
 
-        } else {
-
-          console.log(
-            "[SAKIB HUG] Image sent successfully."
-          );
-        }
-      },
-
-      messageID
-    );
-
-  } catch (error) {
-
-    console.error(
-      "[SAKIB HUG] Unexpected error:",
-      error
-    );
-
-    return api.sendMessage(
-      "❌ Hug command error.\n\n" +
-      (error.message || "Unknown error"),
-      event.threadID,
-      event.messageID
-    );
-  }
+        return api.sendMessage(
+            `❌ Hug image send করা যায়নি.\n\n${error.message}`,
+            threadID,
+            messageID
+        );
+    }
 };
