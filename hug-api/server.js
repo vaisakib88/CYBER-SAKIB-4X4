@@ -21,27 +21,29 @@ async function getProfileImage(input) {
   let targetUrl = input;
   
   if (/^\d{5,30}$/.test(input)) {
-    targetUrl = `https://graph.facebook.com/${input}/picture?height=720&width=720`;
+    targetUrl = `https://graph.facebook.com/${input}/picture?height=720&width=720&migration_overrides=%7Boctober_2012_classic%3Atrue%7D`;
   }
 
   const urls = [
     targetUrl,
-    `https://graph.facebook.com/v13.0/${encodeURIComponent(input)}/picture?height=720&width=720`
+    `https://graph.facebook.com/${encodeURIComponent(input)}/picture?height=720&width=720`
   ];
 
   for (const url of urls) {
     try {
       const response = await axios.get(url, {
         responseType: "arraybuffer",
-        timeout: 12000,
+        timeout: 15000,
         maxRedirects: 5,
         headers: {
-          "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1",
-          "Accept": "image/*,*/*;q=0.8"
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+          "Accept-Language": "en-US,en;q=0.9",
+          "Cache-Control": "no-cache"
         }
       });
 
-      if (response.data && response.data.byteLength > 1500) {
+      if (response.data && response.data.byteLength > 1000) {
         return Buffer.from(response.data);
       }
     } catch (err) {
@@ -55,7 +57,7 @@ async function getProfileImage(input) {
       width: 720,
       height: 720,
       channels: 4,
-      background: { r: 230, g: 230, b: 230, alpha: 1 }
+      background: { r: 200, g: 200, b: 200, alpha: 1 }
     }
   }).png().toBuffer();
 }
